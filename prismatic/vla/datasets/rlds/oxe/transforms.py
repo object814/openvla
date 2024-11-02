@@ -840,6 +840,26 @@ def libero_dataset_transform(trajectory: Dict[str, Any]) -> Dict[str, Any]:
     trajectory["observation"]["gripper_state"] = trajectory["observation"]["state"][:, -2:]  # 2D gripper state
     return trajectory
 
+# === Custom libero transforms ===
+def libero_dataset_transform_custom(trajectory: Dict[str, Any]) -> Dict[str, Any]:
+    # libero: -1 = open, 1 = close
+    # we convert it to +1 = open, 0 = close
+    gripper_action = trajectory["action"][:, -1]
+    # gripper action is in -1 (open)...1 (close) --> clip to 0...1, flip --> +1 = open, 0 = close
+    gripper_action = invert_gripper_actions(tf.clip_by_value(gripper_action, 0, 1))
+    # gripper_action = tf.clip_by_value(gripper_action, 0, 1)
+    # gripper_action = invert_gripper_actions(gripper_action)
+
+    trajectory["action"] = tf.concat(
+        (
+            trajectory["action"][:, :-1],
+            tf.expand_dims(gripper_action, axis=-1),
+        ),
+        axis=-1,
+    )
+
+    return trajectory
+
 
 # === Registry ===
 OXE_STANDARDIZATION_TRANSFORMS = {
@@ -919,4 +939,12 @@ OXE_STANDARDIZATION_TRANSFORMS = {
     "libero_object_no_noops": libero_dataset_transform,
     "libero_goal_no_noops": libero_dataset_transform,
     "libero_10_no_noops": libero_dataset_transform,
+
+    ### LIBERO datasets with custom transforms
+    "libero_spatial": libero_dataset_transform_custom,
 }
+
+# === Custom Sequential Datasets ===
+for i in range(10):
+    dataset_name = f"libero_spatial_{i}"
+    OXE_STANDARDIZATION_TRANSFORMS[dataset_name] = libero_dataset_transform_custom
