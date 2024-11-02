@@ -17,6 +17,14 @@ Run with:
                                     --dataset_name <DATASET_NAME> \
                                     --run_root_dir <PATH/TO/LOGS/DIR> \
                                     ...
+
+Run with specific CUDA devices:
+    CUDA_VISIBLE_DEVICES=<GPU_IDS> torchrun --standalone --nnodes 1 --nproc-per-node $K vla-scripts/finetune.py \
+        --data_root_dir <PATH/TO/RLDS/DATASETS/DIRECTORY> \
+        --dataset_name <DATASET_NAME> \
+        --run_root_dir <PATH/TO/LOGS/DIR> \
+        --adapter_tmp_dir <PATH/TO/ADAPTER/TEMP/DIR> \
+For us, some machines does not work with --standalone, in that case, exclude it.
 """
 
 import os
