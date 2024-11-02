@@ -24,14 +24,36 @@ Run with specific CUDA devices:
         --dataset_name <DATASET_NAME> \
         --run_root_dir <PATH/TO/LOGS/DIR> \
         --adapter_tmp_dir <PATH/TO/ADAPTER/TEMP/DIR> \
+        --batch_size <BATCH_SIZE> \
+        --max_steps <MAX_STEPS> \
+        --save_steps <SAVE_STEPS> \
+        --learning_rate <LEARNING_RATE> \
+        --grad_accumulation_steps <GRAD_ACCUMULATION_STEPS> \
+        --shuffle_buffer_size <SHUFFLE_BUFFER_SIZE> \
+        --wandb_project <WANDB_PROJECT> \
 For us, some machines does not work with --standalone, in that case, exclude it.
+
+TODO: delete the following logs before final submission
+Log for our setup:
+    batch_size: int = 2                                             # Fine-tuning batch size
+    max_steps: int = 40_000                                         # Max number of fine-tuning steps
+    save_steps: int = 500                                           # Interval for checkpoint saving
+    learning_rate: float = 2e-5                                     # Fine-tuning learning rate
+    grad_accumulation_steps: int = 1                                # Gradient accumulation steps
+    image_aug: bool = False                                         # Whether to train with image augmentations
+    shuffle_buffer_size: int = 1_000                                # Dataloader shuffle buffer size (can reduce if OOM)
+
+    wandb_entity: str = "object814-national-university-of-singapore"                          # Name of entity to log under
 """
 
 import os
+os.environ['TRANSFORMERS_CACHE'] = 'YOUR_CACHE_DIR' # Set a custom transformers cache directory (with openvla model inside) if needed
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # According to the HF team, this is needed to avoid issues with tokenizers
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+import datetime # For better logging exp_id
 
 import draccus
 import torch
@@ -97,7 +119,8 @@ class FinetuneConfig:
     save_steps: int = 5000                                          # Interval for checkpoint saving
     learning_rate: float = 5e-4                                     # Fine-tuning learning rate
     grad_accumulation_steps: int = 1                                # Gradient accumulation steps
-    image_aug: bool = True                                          # Whether to train with image augmentations
+    # image_aug: bool = True                                          # Whether to train with image augmentations
+    image_aug: bool = False                                         # We don't use image augmentations since we are working on simulation data
     shuffle_buffer_size: int = 100_000                              # Dataloader shuffle buffer size (can reduce if OOM)
     save_latest_checkpoint_only: bool = True                        # Whether to save only one checkpoint per run and
                                                                     #   continually overwrite the latest checkpoint
@@ -133,6 +156,7 @@ def finetune(cfg: FinetuneConfig) -> None:
         f"{cfg.vla_path.split('/')[-1]}+{cfg.dataset_name}"
         f"+b{cfg.batch_size * cfg.grad_accumulation_steps}"
         f"+lr-{cfg.learning_rate}"
+        f"+date-{datetime.datetime.now().strftime('%Y%m%d')}"
     )
     if cfg.use_lora:
         exp_id += f"+lora-r{cfg.lora_rank}+dropout-{cfg.lora_dropout}"
@@ -156,10 +180,10 @@ def finetune(cfg: FinetuneConfig) -> None:
         )
 
     # Register OpenVLA model to HF Auto Classes (not needed if the model is on HF Hub)
-    AutoConfig.register("openvla", OpenVLAConfig)
-    AutoImageProcessor.register(OpenVLAConfig, PrismaticImageProcessor)
-    AutoProcessor.register(OpenVLAConfig, PrismaticProcessor)
-    AutoModelForVision2Seq.register(OpenVLAConfig, OpenVLAForActionPrediction)
+    # AutoConfig.register("openvla", OpenVLAConfig)
+    # AutoImageProcessor.register(OpenVLAConfig, PrismaticImageProcessor)
+    # AutoProcessor.register(OpenVLAConfig, PrismaticProcessor)
+    # AutoModelForVision2Seq.register(OpenVLAConfig, OpenVLAForActionPrediction)
 
     # Load OpenVLA Processor and Model using HF AutoClasses
     processor = AutoProcessor.from_pretrained(cfg.vla_path, trust_remote_code=True)
@@ -254,8 +278,12 @@ def finetune(cfg: FinetuneConfig) -> None:
     recent_action_accuracies = deque(maxlen=cfg.grad_accumulation_steps)
     recent_l1_losses = deque(maxlen=cfg.grad_accumulation_steps)
 
+    # Initialize step counter
+    step_counter = 0
+
     # Train!
-    with tqdm.tqdm(total=cfg.max_steps, leave=False) as progress:
+    # with tqdm.tqdm(total=cfg.max_steps, leave=False) as progress:
+    with tqdm.tqdm(total=cfg.max_steps, leave=True) as progress:
         vla.train()
         optimizer.zero_grad()
         for batch_idx, batch in enumerate(dataloader):
@@ -323,12 +351,14 @@ def finetune(cfg: FinetuneConfig) -> None:
             if (batch_idx + 1) % cfg.grad_accumulation_steps == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-                progress.update()
+                progress.update(cfg.grad_accumulation_steps)
+                step_counter += cfg.grad_accumulation_steps
 
             # Save Model Checkpoint =>> by default, only keeps the latest checkpoint, continually overwriting it!
-            if gradient_step_idx > 0 and gradient_step_idx % cfg.save_steps == 0:
+            # if gradient_step_idx > 0 and gradient_step_idx % cfg.save_steps == 0:
+            if gradient_step_idx > 0 and (gradient_step_idx+1) % cfg.save_steps == 0:
                 if distributed_state.is_main_process:
-                    print(f"Saving Model Checkpoint for Step {gradient_step_idx}")
+                    print(f"Saving Model Checkpoint for Step {gradient_step_idx+1}")
 
                     # If LoRA, we first save adapter weights, then merge into full model; otherwise, default save!
                     save_dir = adapter_dir if cfg.use_lora else run_dir
@@ -356,7 +386,7 @@ def finetune(cfg: FinetuneConfig) -> None:
                             print(f"Saved Model Checkpoint for Step {gradient_step_idx} at: {run_dir}")
                         else:
                             # Prepare to save checkpoint in new directory
-                            checkpoint_dir = Path(str(run_dir) + f"--{gradient_step_idx}_chkpt")
+                            checkpoint_dir = Path(str(run_dir) + f"--{gradient_step_idx+1}_chkpt")
                             os.makedirs(checkpoint_dir, exist_ok=True)
 
                             # Save dataset statistics to new directory
@@ -366,13 +396,16 @@ def finetune(cfg: FinetuneConfig) -> None:
                             processor.save_pretrained(checkpoint_dir)
                             merged_vla.save_pretrained(checkpoint_dir)
 
-                            print(f"Saved Model Checkpoint for Step {gradient_step_idx} at: {checkpoint_dir}")
+                            print(f"Saved Model Checkpoint for Step {gradient_step_idx+1} at: {checkpoint_dir}")
 
                 # Block on Main Process Checkpointing
                 dist.barrier()
 
             # Stop training when max_steps is reached
-            if gradient_step_idx == cfg.max_steps:
+            # if gradient_step_idx == cfg.max_steps:
+            #     print(f"Max step {cfg.max_steps} reached! Stopping training...")
+            #     break
+            if step_counter == cfg.max_steps:
                 print(f"Max step {cfg.max_steps} reached! Stopping training...")
                 break
 
