@@ -66,9 +66,6 @@ from prismatic.vla.action_tokenizer import ActionTokenizer
 from prismatic.vla.datasets import RLDSBatchTransform, RLDSDataset
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
 
-# Set TOKENIZERS_PARALLELISM to false
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 
 @dataclass
 class FinetuneConfig:
