@@ -28,6 +28,8 @@ import json
 import os
 import time
 
+os.environ['MUJOCO_GL'] = 'osmesa' # off-screen rendering for robosuite (LIBERO env)
+
 import h5py
 import numpy as np
 import robosuite.utils.transform_utils as T
