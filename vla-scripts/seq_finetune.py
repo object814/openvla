@@ -39,8 +39,9 @@ Note:
 """
 
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 os.environ['TRANSFORMERS_CACHE'] = '/data/zhouhy/Datasets/huggingface_cache' # Set a custom transformers cache directory (with openvla model inside) if needed
-os.environ["TOKENIZERS_PARALLELISM"] = "false" # According to the HF team, this is needed to avoid issues with tokenizers
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,6 +67,7 @@ from prismatic.vla.action_tokenizer import ActionTokenizer
 from prismatic.vla.datasets import RLDSBatchTransform, RLDSDataset
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
 
+os.environ["TOKENIZERS_PARALLELISM"] = "false" # According to the HF team, this is needed to avoid issues with tokenizers
 
 @dataclass
 class FinetuneConfig:
@@ -118,7 +120,7 @@ def seq_finetune(cfg: FinetuneConfig) -> None:
 
     # Initialize W&B once for the entire run
     if distributed_state.is_main_process:
-        wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name="seq_finetune")
+        wandb.init(entity=cfg.wandb_entity, project=cfg.wandb_project, name=f"run_{datetime.datetime.now().strftime('%Y%m%d')}")
 
     for dataset_name in cfg.dataset_names:
         print(f"Fine-tuning on `{dataset_name}`")
@@ -232,7 +234,8 @@ def seq_finetune(cfg: FinetuneConfig) -> None:
         step_counter = 0
 
         # Train!
-        with tqdm.tqdm(total=cfg.max_steps, leave=True) as progress:
+        # with tqdm.tqdm(total=cfg.max_steps, leave=True) as progress:
+        with tqdm.tqdm(total=cfg.max_steps, disable=True) as progress:
             vla.train()
             optimizer.zero_grad()
             for batch_idx, batch in enumerate(dataloader):
