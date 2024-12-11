@@ -6,6 +6,9 @@ Given an HF-exported OpenVLA model, attempt to load via AutoClasses, and verify 
 
 import time
 
+import os
+os.environ['TRANSFORMERS_CACHE'] = '/data/zhouhy/Datasets/huggingface_cache' # Set a custom transformers cache directory (with openvla model inside) if needed
+
 import numpy as np
 import torch
 from PIL import Image
