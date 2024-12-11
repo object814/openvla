@@ -948,3 +948,8 @@ OXE_STANDARDIZATION_TRANSFORMS = {
 for i in range(10):
     dataset_name = f"libero_spatial_{i}"
     OXE_STANDARDIZATION_TRANSFORMS[dataset_name] = libero_dataset_transform_custom
+
+# === Sequential Datasets with OpenVLA transform ===
+for i in range(10):
+    dataset_name = f"libero_object_no_noops_{i}"
+    OXE_STANDARDIZATION_TRANSFORMS[dataset_name] = libero_dataset_transform

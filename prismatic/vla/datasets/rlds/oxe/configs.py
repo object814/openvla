@@ -691,3 +691,14 @@ for i in range(10):
         "state_encoding": StateEncoding.NONE,
         "action_encoding": ActionEncoding.EEF_POS,
     }
+
+# === Sequential Datasets with OpenVLA config ===
+for i in range(10):
+    dataset_name = f"libero_object_no_noops_{i}"
+    OXE_DATASET_CONFIGS[dataset_name] = {
+        "image_obs_keys": {"primary": "image", "secondary": None, "wrist": "wrist_image"},
+        "depth_obs_keys": {"primary": None, "secondary": None, "wrist": None},
+        "state_obs_keys": ["EEF_state", None, "gripper_state"],
+        "state_encoding": StateEncoding.POS_EULER,
+        "action_encoding": ActionEncoding.EEF_POS,
+    }
