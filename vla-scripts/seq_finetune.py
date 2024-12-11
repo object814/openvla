@@ -39,7 +39,7 @@ Note:
 """
 
 import os
-os.environ['TRANSFORMERS_CACHE'] = 'YOUR_CACHE_DIR' # Set a custom transformers cache directory (with openvla model inside) if needed
+os.environ['TRANSFORMERS_CACHE'] = '/data/zhouhy/Datasets/huggingface_cache' # Set a custom transformers cache directory (with openvla model inside) if needed
 os.environ["TOKENIZERS_PARALLELISM"] = "false" # According to the HF team, this is needed to avoid issues with tokenizers
 from collections import deque
 from dataclasses import dataclass
@@ -77,14 +77,14 @@ class FinetuneConfig:
     adapter_tmp_dir: str = "adapter-tmp"  # Temp directory for LoRA weights
 
     # Fine-tuning Parameters
-    batch_size: int = 16
-    max_steps: int = 200_000
-    save_steps: int = 5000
+    batch_size: int = 2
+    max_steps: int = 25_000
+    save_steps: int = 12_500
     learning_rate: float = 5e-4
     grad_accumulation_steps: int = 1
-    image_aug: bool = True
-    shuffle_buffer_size: int = 100_000
-    save_latest_checkpoint_only: bool = True  # Save only the latest checkpoint
+    image_aug: bool = False
+    shuffle_buffer_size: int = 10_000
+    save_latest_checkpoint_only: bool = False  # Save only the latest checkpoint
 
     # LoRA Arguments
     use_lora: bool = True
@@ -94,7 +94,7 @@ class FinetuneConfig:
 
     # Tracking Parameters
     wandb_project: str = "openvla"
-    wandb_entity: str = "your-wandb-entity"
+    wandb_entity: str = "your-wandb-entity" # object814-national-university-of-singapore
     run_id_note: Optional[str] = None  # Extra note for logging
 
     def __post_init__(self):
