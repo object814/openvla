@@ -234,8 +234,8 @@ def seq_finetune(cfg: FinetuneConfig) -> None:
         step_counter = 0
 
         # Train!
-        # with tqdm.tqdm(total=cfg.max_steps, leave=True) as progress:
-        with tqdm.tqdm(total=cfg.max_steps, disable=True) as progress:
+        with tqdm.tqdm(total=cfg.max_steps, leave=True) as progress:
+        # with tqdm.tqdm(total=cfg.max_steps, disable=True) as progress:
             vla.train()
             optimizer.zero_grad()
             for batch_idx, batch in enumerate(dataloader):
@@ -355,7 +355,19 @@ def seq_finetune(cfg: FinetuneConfig) -> None:
                     break
 
         # Update vla_path for the next dataset
-        cfg.vla_path = str(run_dir)
+        # Use the latest checkpoint directory for the next dataset
+        # Find all folder name starting with checkpoint- in run_dir
+        checkpoint_dirs = [d for d in run_dir.iterdir() if d.is_dir() and d.name.startswith("checkpoint-")]
+        if checkpoint_dirs:
+            # Sort the checkpoint directories by step number
+            checkpoint_dirs.sort(key=lambda x: int(x.name.split("-")[-1]))
+            print(f"Using checkpoint #{checkpoint_dirs[-1].name} for the next dataset.")
+            # Use the latest checkpoint directory for the next dataset
+            cfg.vla_path = str(checkpoint_dirs[-1])
+        else:
+            # Use the latest run_dir for the next dataset
+            print("Warning: No checkpoints found for the next dataset. Using the latest run directory instead.")
+            cfg.vla_path = str(run_dir)
 
         # Release CUDA memory
         torch.cuda.empty_cache()
